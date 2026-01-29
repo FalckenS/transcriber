@@ -1,12 +1,14 @@
 import sys, torch, os, argparse
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 
+
 def transcribe_audio(audio_file: str, language: str, model_id: str) -> str:
     print(f"Loading model: {model_id}...")
     
     use_cuda = torch.cuda.is_available()
     torch_device = torch.device("cuda:0") if use_cuda else torch.device("cpu")
     pipeline_device = 0 if use_cuda else -1
+    
     # Use half precision, faster without compromising much accuracy
     dtype = torch.float16 if use_cuda else torch.float32
 
@@ -25,12 +27,12 @@ def transcribe_audio(audio_file: str, language: str, model_id: str) -> str:
         model=model,
         tokenizer=processor.tokenizer,
         feature_extractor=processor.feature_extractor,
-        # 30 seconds per chunk
-        chunk_length_s=30,
-        batch_size=16 if use_cuda else 1,
+        chunk_length_s=30, # 30 seconds per chunk
+        batch_size=12 if use_cuda else 1,
         return_timestamps=False,
         dtype=dtype,
-        device=pipeline_device
+        device=pipeline_device,
+        ignore_warning=True
     )
     print("Transcribing...")
     result = pipe(audio_file, generate_kwargs={"language": language})
@@ -39,6 +41,7 @@ def transcribe_audio(audio_file: str, language: str, model_id: str) -> str:
 
 
 if __name__ == "__main__":
+    # argparse stuff
     parser = argparse.ArgumentParser(description="Transcribe mp3 files using Whisper")
     parser.add_argument(
         "audio_file",
@@ -53,6 +56,7 @@ if __name__ == "__main__":
         help="Output file path (default: transcript.txt)")
     args = parser.parse_args()
 
+    # Model selection
     if args.language == "swedish":
         model_id = "KBLab/kb-whisper-large"
     else:
@@ -64,8 +68,6 @@ if __name__ == "__main__":
 
     try:
         transcript = transcribe_audio(args.audio_file, args.language, model_id)
-        
-        # Save to text file
         with open(args.output, "w", encoding="utf-8") as f:
             f.write(transcript)
             
